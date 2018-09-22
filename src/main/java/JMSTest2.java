@@ -2,6 +2,7 @@ import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.RedeliveryPolicy;
 import org.apache.activemq.camel.component.ActiveMQComponent;
 import org.apache.camel.CamelContext;
+import org.apache.camel.LoggingLevel;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.jms.JmsConfiguration;
 import org.apache.camel.impl.DefaultCamelContext;
@@ -40,7 +41,7 @@ public class JMSTest2 {
 
         context.addRoutes(new RouteBuilder() {
             public void configure() throws Exception {
-                onException(Exception.class).handled(true);
+                onException(Exception.class).handled(true).to("activemq:queue:testerrorqueue");
 
                 from("activemq:queue:test?transacted=true")
                         .transacted()
@@ -49,13 +50,30 @@ public class JMSTest2 {
                         .process(exchange -> {
                             //System.out.println("Before sleep");
                             //Thread.sleep(10000);
-                            if (exchange.getIn().getBody(String.class).equals("test70")) {
-                                throw new Exception("test70 arrived");
-                            }
+                            System.out.println("Body1=" + exchange.getIn().getBody(String.class));
+/*
+                            if (exchange.getIn().getBody(String.class).equals("test72")) {
+                                // throw new Exception("test70 arrived");
+                            }*/
                             System.out.println("Body=" + exchange.getIn().getBody(String.class));
                             /*throw new Exception("Hallo Welt");*/})
-                        .to("activemq:queue:test2");
+                        .to("direct:test2");
 
+            }
+        });
+
+        context.addRoutes(new RouteBuilder() {
+            public void configure() throws Exception {
+                onException(Exception.class).handled(true).to("activemq:queue:testerrorqueue");
+
+                from("direct:test2")
+                        .log(LoggingLevel.INFO, "$body")
+                        .process(exchange -> {
+                            if (exchange.getIn().getBody(String.class).equals("test70")) {
+                                throw new Exception("test70 arrived in direct:test2");
+                            }
+                        })
+                        .to("activemq:queue:test2");
             }
         });
 
