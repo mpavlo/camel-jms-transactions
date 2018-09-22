@@ -2,15 +2,13 @@ import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.RedeliveryPolicy;
 import org.apache.activemq.camel.component.ActiveMQComponent;
 import org.apache.camel.CamelContext;
-import org.apache.camel.LoggingLevel;
 import org.apache.camel.builder.RouteBuilder;
-import org.apache.camel.component.jms.JmsComponent;
 import org.apache.camel.component.jms.JmsConfiguration;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.impl.SimpleRegistry;
 import org.springframework.jms.connection.JmsTransactionManager;
 
-public class JMSTest{
+public class JMSTest2 {
     public static void main(String[] args) throws Exception {
         ActiveMQConnectionFactory jmsConnectionFactory =
                 new ActiveMQConnectionFactory(
@@ -25,19 +23,27 @@ public class JMSTest{
 
         jmsConnectionFactory.setRedeliveryPolicy(redeliveryPolicy);
 
+        JmsConfiguration jmsConfiguration = new JmsConfiguration();
+        jmsConfiguration.setConnectionFactory(jmsConnectionFactory);
+        jmsConfiguration.setTransactionManager(jmsTransactionManager);
+        jmsConfiguration.setTransacted(true);
+        jmsConfiguration.setCacheLevelName("CACHE_CONSUMER");
+
         SimpleRegistry registry = new SimpleRegistry();
         registry.put("transactionManager", jmsTransactionManager);
 
         CamelContext context = new DefaultCamelContext(registry);
         ActiveMQComponent activeMQComponent = new ActiveMQComponent();
-        activeMQComponent.setConnectionFactory(jmsConnectionFactory);
-        activeMQComponent.setTransactionManager(jmsTransactionManager);
+        activeMQComponent.setConfiguration(jmsConfiguration);
 
         context.addComponent("activemq", activeMQComponent);
 
         context.addRoutes(new RouteBuilder() {
             public void configure() throws Exception {
+                onException(Exception.class).handled(true);
+
                 from("activemq:queue:test?transacted=true")
+                        .transacted()
                         .process(exchange -> exchange.getIn().getBody())
                         .log("test123")
                         .process(exchange -> {
@@ -46,6 +52,7 @@ public class JMSTest{
                             if (exchange.getIn().getBody(String.class).equals("test70")) {
                                 throw new Exception("test70 arrived");
                             }
+                            System.out.println("Body=" + exchange.getIn().getBody(String.class));
                             /*throw new Exception("Hallo Welt");*/})
                         .to("activemq:queue:test2");
 
